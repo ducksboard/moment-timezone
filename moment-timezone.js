@@ -8,7 +8,7 @@
 
 	var VERSION = "0.0.3";
 
-	function onload(moment) {
+	function onload(moment, _) {
 		var oldZoneName = moment.fn.zoneName,
 			oldZoneAbbr = moment.fn.zoneAbbr,
 
@@ -118,6 +118,10 @@
 					return false;
 				}
 				return Math.abs(other.start - this.start) < 86400000; // 24 * 60 * 60 * 1000
+			},
+
+			addToStart : function (unit, offset) {
+				this.start.add(unit, offset);
 			}
 		};
 
@@ -139,6 +143,10 @@
 			this.name = name;
 			this.rules = [];
 			this.lastYearRule = memoize(this.lastYearRule);
+			this.ruleYears = memoize(this.ruleYears, function(mom, lastZone) {
+				var zone = lastZone ? lastZone.name : '';
+				return mom.year() + '-' + zone;
+			});
 		}
 
 		RuleSet.prototype = {
@@ -192,6 +200,10 @@
 				for (i = rules.length - 1; i > -1; i--) {
 					lastRule = rule;
 					rule = rules[i];
+					// We're memoizing RuleYears, don't allow adding an offset
+					// to their start time more than once or the difference
+					// will sum up on each iteration!
+					rule.addToStart = _.once(rule.addToStart);
 
 					if (rule.equals(lastRule)) {
 						continue;
@@ -206,7 +218,7 @@
 					}
 
 					if (rule.rule.timeRule !== TIME_RULE_UTC) {
-						rule.start.add('m', -lastOffset);
+						rule.addToStart('m', -lastOffset);
 					}
 
 					lastOffset = rule.rule.offset + offset;
@@ -519,7 +531,7 @@
 	}
 
 	if (typeof define === "function" && define.amd) {
-		define("moment-timezone", ["moment"], onload);
+		define(["moment", "underscore"], onload);
 	} else if (typeof module !== 'undefined') {
 		module.exports = onload(require('moment'));
 	} else if (typeof window !== "undefined" && window.moment) {
